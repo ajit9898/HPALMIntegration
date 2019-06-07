@@ -1,0 +1,135 @@
+﻿--set authentication information for HP ALM 
+--url: the connection string upto qcbin for the instance of HP ALM you are going to work against
+--domain: the HP ALM domain to be used
+--project: the project wihtin the domain
+--user: the user name being used to update the test results
+--encryptedPassword: the encrypted password
+HPALM.SetupProject container project, (url:"http://localhost:8080/qcbin", domain:"DEFAULT", project:"TestPlant",user:"jvoeten",encryptedPassword:"LZvdWqqGKH0MR6e64RJh3Q==")
+
+--Set Paths and define testset
+--testPlan: the testplan directory for the location of the test
+--testLab: the testlab directory for the location of the testset
+--testSet: the name of the testset within the testLab directory
+HPALM.SetTestpath container project, (testPlan:"Subject\TestPlant\Website", testLab:"Root\Website\Regression", testSet:"Acceptation")
+
+--update testset custom field
+-- any custom testSet parameters can be added 
+HPALM.SetTestSetParameter container project,(name:"eggCloud", value:"Yes")
+HPALM.SetTestSetParameter container project,(name:"eggPlantNetwork", value:"No")
+
+--define test
+--name: the name of the test being executed
+HPALM.setTestInfo container project, (name:"steptest")
+
+--update test custom field
+-- any custom test parameters
+HPALM.SetTestParameter container project,(name:"TargetOS", value:"Mac OSX 10")
+
+log "Start running a test"
+--this is where your test will run
+
+--StartMovie "MyName"
+
+log "doing step 1"
+CaptureScreen (Name: "step1picture")
+put the directory of the logfile of the last item of ScriptResults() & "step1picture.png" into myfile
+--each individual step needs to be added 
+--name: the step name (if it does not exist it will be added) if you do not update all the steps the steps not included will be flaged as not run
+--status: the status either passed or failed
+--actual: the information you want to include for this step
+--error: if the step has failed the error reason can be added for a Passed step this field is ignored
+HPALM.addStep container project,(name:"Step 1", status:"Failed", actual:"returned 1", error:"wrong value returned", file:myfile) 
+
+log "doing step 2"
+CaptureScreen (Name: "step2picture")
+put the directory of the logfile of the last item of ScriptResults() & "step2picture.png" into myfile
+HPALM.addStep container project,(name:"Step 2", status:"Passed", actual:"returned 2", file:myfile)
+
+log "doing step 3"
+CaptureScreen (Name: "step3picture")
+put the directory of the logfile of the last item of ScriptResults() & "step3picture.png" into myfile
+HPALM.addStep container project,(name:"Step 3", status:"Passed", actual:"returned 3", file:myfile) 
+
+log "doing step 4"
+CaptureScreen (Name: "step4picture")
+put the directory of the logfile of the last item of ScriptResults() & "step4picture.png" into myfile
+HPALM.addStep container project,(name:"Step 4", status:"Passed", actual:"returned 4", file:myfile)
+
+log "doing step 5"
+CaptureScreen (Name: "step5picture")
+put the directory of the logfile of the last item of ScriptResults() & "step5picture.png" into myfile
+HPALM.addStep container project,(name:"Step 5", status:"Passed", actual:"returned 5", file:myfile)
+
+--stopmovie
+
+log "finished wth a test"
+
+-- update test result based on any steps being set with status Failed
+set TestStatus to "Passed"
+repeat with every node "//suite/case/step" of project
+	if the status of it = "Failed" then set TestStatus to "Failed"
+end repeat
+
+if TestStatus = "Failed"
+	LogWarning "One of the steps has failed, setting the results to Failed"
+else
+	LogSuccess "All steps passed, setting the results to Passed"
+end if
+HPALM.setTestResult container project, TestStatus
+
+--update 
+HPALM.SetTestParameter container project,(name:"RunDuration", value:"35")
+HPALM.SetTestParameter container project,(name:"RunComments", value:"Executed by" && version())
+HPALM.SetTestParameter container project,(name:"RunOSBuild", value:OSInfo().ProductBuildVersion)
+HPALM.SetTestParameter container project,(name:"RunOS", value:OSInfo().ProductName)
+HPALM.SetTestParameter container project,(name:"RunHost", value:HostName())
+HPALM.SetTestParameter container project,(name:"eggPlantLogfile", value:"my path to the log file")
+
+--add the Eggplant Functional logfile as attachment 
+insert (tag:attachment, attributes:(id:"LogFile", fileName:"LogFile.txt"))into node "//suite/case" of project
+
+put the directory of the logfile of the last item of ScriptResults() & "test_payload.xml" into payload
+put project into file payload
+
+insert (filename:"test_payload.xml" , "Content-Type":"application/xml", body: file (payload) as data) nested after Global content
+
+log "steps with attachments"
+repeat with every node "//suite/case/step/attachment" of project
+	insert (filename:the id of it , body: file(the file of it) as data) nested after global content
+end repeat
+
+--adding logfile
+--if mpl.file <> "" then insert (tag:attachment, attributes:(id:autoid, fileName:lastPathComponent of mpl.file, file:mpl.file))into node ! "//suite/case/step[ [[stepcounter]] ]" of eggIntegration
+
+insert (filename:"LogFile" , body: file(the logfile of the last item of ScriptResults()) as data) nested after global content
+
+put project
+
+-- specify the host name or IP Address for the eggIntegration server as well as the port
+set integrationHost to "172.16.216.190" 
+set integrationPort to "8082" --For example 
+
+set serverURL to MakeURL of {scheme:"http", 
+	host:integrationHost,
+	port:integrationPort,
+	path:"/eggplantALM/alm" }
+
+--Log serverURL
+--log global content
+
+--put (multipartMIME(global content) adding (request:"/")) as http
+
+put time into starttime
+post multipart Global content to URL serverURL
+Log "Updating ALM time:" && time - starttime
+
+put it into ALMUpdateResult
+if ALMUpdateResult contains "OK" then
+	if ALMUpdateResult contains "warning" then
+		LogWarning "Updated but with warning" && ALMUpdateResult
+	else
+		logSuccess ALMUpdateResult --Show the results of the ALM Update
+	end if
+else
+	LogWarning ALMUpdateResult --Show the results of the ALM Update
+end if
