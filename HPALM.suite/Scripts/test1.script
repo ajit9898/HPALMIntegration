@@ -1,4 +1,6 @@
 ﻿--HP ALM
+--Author: Ajit
+//date:7th june
 --set authentication information for HP ALM 
 --url: the connection string upto qcbin for the instance of HP ALM you are going to work against
 --domain: the HP ALM domain to be used
