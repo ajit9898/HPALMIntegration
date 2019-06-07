@@ -1,4 +1,5 @@
-﻿--set authentication information for HP ALM 
+﻿--HP ALM
+--set authentication information for HP ALM 
 --url: the connection string upto qcbin for the instance of HP ALM you are going to work against
 --domain: the HP ALM domain to be used
 --project: the project wihtin the domain
